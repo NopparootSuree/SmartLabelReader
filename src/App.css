@@ -1,0 +1,47 @@
+#canvas,
+#camera,
+input[type='file'] {
+  display: none;
+}
+
+#camera span {
+  position: absolute;
+  border-radius: 50%;
+  bottom: 10px;
+  left: 0;
+  right: 0;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#camera #horizontal-line {
+  border-bottom: 2px solid #fff;
+  bottom: 70px;
+  width: 50%;
+  margin: 0 auto;
+  position: relative;
+}
+
+#camera span:first-of-type {
+  background: white;
+  width: 50px;
+  height: 50px;
+}
+
+#camera span:nth-of-type(2) {
+  background: black;
+  bottom: 14px;
+  width: 42px;
+  height: 42px;
+}
+
+#camera span:last-of-type {
+  background: white;
+  bottom: 18px;
+  width: 34px;
+  height: 34px;
+}
+
