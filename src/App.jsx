@@ -9,14 +9,18 @@ import {
   firebaseConfig,
 } from "./firebaseConfig";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCircleNotch } from "@fortawesome/free-solid-svg-icons";
+import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 
 export default function App() {
+  const [energy, setEnergy] = useState("");
+  const [oneServe, setOneServe] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [nutrition, setNutrition] = useState([]);
   const [rawText, setRawText] = useState("");
   const app = initializeApp(firebaseConfig);
   const functions = getFunctions(app, "asia-southeast1");
+
   var cameraStream = null;
   const previewImageRef = useRef(null);
   const cameraRef = useRef(null);
@@ -114,12 +118,79 @@ export default function App() {
     stopStreaming();
   };
 
-  function handleText(result) {
-    let nutrition = [];
+  function handleTextEnergy(result) {
     let results = result.fullTextAnnotation.text
       .replace(/\./g, "")
       .replace(/[^ก-๙\d\n]+/g, "");
 
+    const startWord = "พลังงานทั้งหมด";
+    const endWord = "กิโลแคลอรี";
+
+    const indexOfStartWord = results.indexOf(startWord);
+    const indexOfEndWord = results.indexOf(endWord);
+
+    const testKilocal =
+      indexOfStartWord !== -1 && indexOfEndWord !== -1
+        ? results.substring(indexOfStartWord, indexOfEndWord + endWord.length)
+        : text;
+
+    const textSpaceKilocal = testKilocal.replace(/(\d+)/g, " $1 ");
+
+    let data = {
+      kilocal: textSpaceKilocal,
+    };
+
+    return data;
+  }
+
+  function handleTextOneServe(result) {
+    let oneServing = [];
+    let results = result.fullTextAnnotation.text
+      .replace(/\./g, "")
+      .replace(/[^ก-๙\d\n]+/g, "");
+
+    results.split("\n").forEach((row) => {
+      const items = row.split(" ").join("");
+      const newText = items.split("\n");
+      const regexFoundOneServe = /หนึ่งหน่วยบริโภค/;
+      const filteredTextOneServe = newText.filter((item) =>
+        regexFoundOneServe.test(item)
+      );
+
+      let units = ["มก", "มิลลิกรัม", "มล", "มิลลิลิตร", "กรัม", "ก"];
+
+      filteredTextOneServe.forEach((text) => {
+        const textSpaceNumber = text.replace(/(\d+)/g, " $1 ");
+        units.forEach((unit) => {
+          const endIndex = textSpaceNumber.indexOf(unit);
+          const result = textSpaceNumber.substring(0, endIndex + unit.length);
+
+          let checkUnit =
+            result.substr(
+              result.length - unit.length,
+              result.length - unit.length + unit.length
+            ) === unit;
+
+          if (checkUnit) {
+            oneServing.push(result);
+          }
+        });
+      });
+    });
+
+    let data = {
+      infoOneServe: oneServing,
+    };
+
+    return data;
+  }
+
+  function handleTextNutrition(result) {
+    let nutrition = [];
+    let results = result.fullTextAnnotation.text
+      .replace(/\./g, "")
+      .replace(/[^ก-๙\d\n]+/g, "");
+    console.log(results)
     results.split("\n").forEach((row) => {
       const items = row.split(" ").join("");
       const newText = items.split("\n");
@@ -135,36 +206,51 @@ export default function App() {
       });
     });
 
-    const transformedText = nutrition.map((item) => {
-      return item[0].replace(/(\d+)(ก|มก)$/, (match, numericValue, unit) => {
-        const newUnit = unit === "ก" ? "กรัม" : "มิลลิกรัม";
-        return `${numericValue}${newUnit}`;
-      });
-    });
+    // const transformedText = nutrition.map((item) => {
+    //   return item[0].replace(/(\d+)(ก|มก)$/, (match, numericValue, unit) => {
+    //     const newUnit = unit === "ก" ? "กรัม" : "มิลลิกรัม";
+    //     return `${numericValue}${newUnit}`;
+    //   });
+    // });
 
-    let concatenatedText = "";
+    // let concatenatedText = "";
 
-    for (const word of transformedText) {
-      concatenatedText += word;
-    }
+    // for (const word of transformedText) {
+    //   concatenatedText += word;
+    // }
 
     let data = {
       nutrition: nutrition,
-      raw_text: concatenatedText,
+      raw_text: results,
     };
 
     return data;
   }
 
   async function ocr(base64encoded) {
+    setRawText("");
+    setNutrition([]);
+    setIsLoading(true);
+    setEnergy("");
+    setOneServe([]);
     const visionAPI = await httpsCallable(functions, "visionAPI");
     visionAPI({ base64: base64encoded })
       .then((results) => {
         const { result } = results.data;
-        let { nutrition, raw_text } = handleText(result);
+        let { nutrition, raw_text } = handleTextNutrition(result);
+        let { infoOneServe } = handleTextOneServe(result);
+        let { kilocal } = handleTextEnergy(result);
         if (nutrition.length > 0) {
           setNutrition(nutrition);
           setRawText(raw_text);
+        }
+
+        if (infoOneServe.length > 0) {
+          setOneServe(infoOneServe[0]);
+        }
+
+        if (kilocal != "") {
+          setEnergy(kilocal);
         }
       })
       .catch((error) => {
@@ -193,25 +279,23 @@ export default function App() {
   };
 
   useEffect(() => {
-    liff.init(
-      { liffId: import.meta.env.VITE_LIFF_ID },
-      () => {
-        if (liff.isLoggedIn()) {
-          liff
-            .getProfile()
-            .then((profile) => {
-              console.log(profile);
-            })
-            .catch((err) => console.log(err));
-        } else {
-          liff.login();
-        }
-      },
-      (err) => console.log(err)
-    );
+    // liff.init(
+    //   { liffId: import.meta.env.VITE_LIFF_ID },
+    //   () => {
+    //     if (liff.isLoggedIn()) {
+    //       liff
+    //         .getProfile()
+    //         .then((profile) => {
+    //           console.log(profile);
+    //         })
+    //         .catch((err) => console.log(err));
+    //     } else {
+    //       liff.login();
+    //     }
+    //   },
+    //   (err) => console.log(err)
+    // );
 
-    responsiveVoice.setDefaultVoice("Thai Female");
-    responsiveVoice.setDefaultRate(1);
     const intervalId = setInterval(checkPlayingSound, 5000);
     return () => clearInterval(intervalId);
   }, []);
@@ -298,24 +382,46 @@ export default function App() {
                       >
                         หยุดเล่น
                       </button>
-                    ) : (
+                    ) : nutrition.length > 0 ? (
                       <button
                         className="whitespace-nowrap bg-sky-400 px-3 py-1.5 text-xs font-medium me-1 text-white rounded-lg font-bold transition hover:scale-105 hover:text-black"
                         onClick={() => playSound(rawText)}
                       >
                         เล่นเสียง
                       </button>
+                    ) : (
+                      <button
+                        className="whitespace-nowrap bg-gray-400 px-3 py-1.5 text-xs font-medium me-1 text-white rounded-lg font-bold transition"
+                        onClick={() => playSound(rawText)}
+                        disabled
+                      >
+                        เล่นเสียง
+                      </button>
                     )}
-                    <button className="whitespace-nowrap bg-blue-400 px-3 py-1.5 text-xs font-medium me-1 text-white rounded-lg font-bold transition hover:scale-105 hover:text-black">
-                      บันทึก
-                    </button>
-                    <button className="whitespace-nowrap bg-red-500 px-3 py-1.5 text-xs font-medium text-white rounded-lg font-bold transition hover:scale-105 hover:text-black">
-                      ล้างข้อมูล
-                    </button>
                   </div>
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border border-gray-200 mt-5">
+                <div className="flex mt-3 justify-center">
+                  {oneServe.length > 0 ? (
+                    <span className="w-full text-center whitespace-nowrap border border-gray-200 rounded-lg px-3 px-3 py-1.5 py-1.5 text-sm text-black font-meduim text-black">
+                      {oneServe}
+                    </span>
+                  ) : (
+                    <span></span>
+                  )}
+                </div>
+
+                <div className="flex mt-2 justify-center">
+                  {energy != "" ? (
+                    <span className="w-full text-center whitespace-nowrap border border-gray-200 rounded-lg px-3 px-3 py-1.5 py-1.5 text-sm text-black font-meduim text-black ">
+                      {energy}
+                    </span>
+                  ) : (
+                    <span></span>
+                  )}
+                </div>
+
+                <div className="overflow-x-auto rounded-lg border border-gray-200 mt-2">
                   <table className="table-fixed min-w-full divide-y-2 divide-gray-200 bg-white text-sm">
                     <thead className="ltr:text-left rtl:text-right">
                       <tr>
@@ -327,7 +433,6 @@ export default function App() {
                         </th>
                       </tr>
                     </thead>
-
                     <tbody className="divide-y divide-gray-200">
                       {nutrition.map((data) => (
                         <tr key={data[0]}>
@@ -344,6 +449,20 @@ export default function App() {
                       ))}
                     </tbody>
                   </table>
+                  <div className="flex justify-center w-full mt-5 mb-5">
+                    {isLoading ? (
+                      nutrition.length > 0 ? (
+                        <p></p>
+                      ) : (
+                        <FontAwesomeIcon
+                          className="text-4xl animate-spin"
+                          icon={faSpinner}
+                        />
+                      )
+                    ) : (
+                      <p></p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
