@@ -279,22 +279,24 @@ export default function App() {
   };
 
   useEffect(() => {
-    // liff.init(
-    //   { liffId: import.meta.env.VITE_LIFF_ID },
-    //   () => {
-    //     if (liff.isLoggedIn()) {
-    //       liff
-    //         .getProfile()
-    //         .then((profile) => {
-    //           console.log(profile);
-    //         })
-    //         .catch((err) => console.log(err));
-    //     } else {
-    //       liff.login();
-    //     }
-    //   },
-    //   (err) => console.log(err)
-    // );
+    responsiveVoice.setDefaultVoice("Thai Female");
+    responsiveVoice.setDefaultRate(1);
+    liff.init(
+      { liffId: import.meta.env.VITE_LIFF_ID },
+      () => {
+        if (liff.isLoggedIn()) {
+          liff
+            .getProfile()
+            .then((profile) => {
+              console.log(profile);
+            })
+            .catch((err) => console.log(err));
+        } else {
+          liff.login();
+        }
+      },
+      (err) => console.log(err)
+    );
 
     const intervalId = setInterval(checkPlayingSound, 5000);
     return () => clearInterval(intervalId);
